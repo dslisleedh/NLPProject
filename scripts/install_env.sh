@@ -6,7 +6,7 @@ yes | conda create -n nlpproject_mmdet python=3.10
 yes | conda create -n nlpproject_blip python=3.10
 
 # MMdet
-conda activate nlpproject_mmdet
+# conda activate nlpproject_mmdet
 yes | conda install pytorch==2.0.0 torchvision==0.15.0 torchaudio==2.0.0 pytorch-cuda=11.8 -c pytorch -c nvidia
 
 yes | pip install -U openmim
@@ -18,5 +18,4 @@ yes | mim install mmdet
 conda activate nlpproject_blip
 yes | conda install pytorch==2.0.0 torchvision==0.15.0 torchaudio==2.0.0 pytorch-cuda=11.8 -c pytorch -c nvidia
 
-yes | pip install salesforce-lavis  # BLIP2. Load BLIP from model zoo
-
+yes | pip install transformers

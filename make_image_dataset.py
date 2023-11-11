@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 import os
-from argparse import ArgumentParser
 from typing import Sequence
 
 
@@ -73,17 +72,17 @@ def main(dirs: Sequence[str]):  # dirs must be absolute paths
             bbox[3] = min(h, bbox[3] + y_size * enlarge_ratio)
             
             cropped_img = img_loaded.crop(bbox)
-            cropped_img.save(os.path.join('./hpitp_dataset/images/', f'{img_name}_{i}.jpg'))
+            cropped_img.save(os.path.join('./hpitp_dataset/images/', f'{img_name}_{i}.png'))
 
     print('Number of human images cropped: ', len(os.listdir('./hpitp_dataset/images/')))
     
 
 if __name__ == '__main__':
-    dir_path = os.environ['IMAGEDIR']
+    dirs = os.environ['IMAGEDIR']
     
     # dir1, dir2, ...
-    dir_path = dir_path.split(',')
-    dir_path = [os.path.abspath(dir_) for dir_ in dir_path]
+    dirs = dirs.split(',')
+    dirs = [os.path.abspath(dir_) for dir_ in dirs]
 
-    main(dir_path)
+    main(dirs)
     
