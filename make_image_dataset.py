@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 import os
-from typing import Sequence
+from typing import Sequence, Optional
 
 
 model = 'deformable-detr-refine_r50_16xb2-50e_coco' # model name
@@ -16,7 +16,7 @@ enlarge_ratio = 0.2 # enlarge bbox by this ratio
 img_extension = ['.jpg', '.jpeg', '.png', '.bmp', '.gif']
 
 
-def main(dirs: Sequence[str]):  # dirs must be absolute paths
+def main(dirs: Sequence[str], datasets: Optional[Sequence[str]] = None):  # dirs must be absolute paths
     os.makedirs('./hpitp_dataset/', exist_ok=True)
     os.makedirs('./hpitp_dataset/images/', exist_ok=True)
     
@@ -25,11 +25,16 @@ def main(dirs: Sequence[str]):  # dirs must be absolute paths
         os.remove(os.path.join('./hpitp_dataset/images/', file))
     
     imgs = []
-    for dir_ in dirs:
+    ds = []
+    for i, dir_ in enumerate(dirs):
         imgs.append(
             [os.path.join(dir_, img) for img in os.listdir(dir_) if os.path.splitext(img)[1] in img_extension]
         )
+        if datasets is None:
+            ds.append(datasets[i] * len(imgs[-1]))
+            
     imgs = sum(imgs, [])
+    ds = sum(ds, [])
     
     cuda_available = torch.cuda.is_available()
     inferencer = DetInferencer(model=model, device='cuda:0' if cuda_available else 'cpu')
@@ -49,6 +54,8 @@ def main(dirs: Sequence[str]):  # dirs must be absolute paths
         # crop image and save
         img_loaded = Image.open(img)
         img_name = os.path.splitext(os.path.basename(img))[0]
+        if datasets is not None:
+            img_name += '_' + ds[n]
         for i in idx:
             bbox = res['predictions'][0]['bboxes'][i]
             
@@ -78,11 +85,14 @@ def main(dirs: Sequence[str]):  # dirs must be absolute paths
     
 
 if __name__ == '__main__':
-    dirs = os.environ['IMAGEDIR']
+    # dirs = os.environ['IMAGEDIR']
+    dirs = "/data/datasets/images,/data/datasets/DF2K/DF2K_train_HR,/data/datasets/LSDIR/Train/HR"
+    datasets = "mpii,DF2K,LSDIR"
     
     # dir1, dir2, ...
     dirs = dirs.split(',')
     dirs = [os.path.abspath(dir_) for dir_ in dirs]
+    datasets = datasets.split(',')
 
-    main(dirs)
+    main(dirs,datasets)
     
