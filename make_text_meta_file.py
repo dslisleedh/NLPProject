@@ -13,7 +13,7 @@ img_extension = ['.jpg', '.jpeg', '.png', '.bmp', '.gif'] # We only used png to 
 
 def main(image_path: str):
     # question = 'Please describe the specific pose of the man in this image. Describe in one sentence and only consider pose itself not additional information.'
-    question =  "Question: Describe pose in images and exclude everything not related with pose. Answer:" # You must ignore what the person is wearing, grapping or background in images."
+    question =  "Question: Which action is this? Answer:" # You must ignore what the person is wearing, grapping or background in images."
     
     if image_path == './hpitp_dataset/images/':
         metafile_dir = './hpitp_dataset/'
@@ -35,7 +35,7 @@ def main(image_path: str):
         "samples": {}
     }
     
-    for img_dir in tqdm(imgs_dir[:50]):
+    for img_dir in tqdm(imgs_dir):
         img = Image.open(img_dir).convert("RGB")
         img_name = os.path.splitext(os.path.basename(img_dir))[0]
         
