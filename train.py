@@ -4,6 +4,7 @@ import torch.functional as F
 
 from src.datasets import TextImageDataset
 from test import test_model
+from utils import get_optimizer
 
 from torch.utils.data import Dataset, DataLoader
 
@@ -37,7 +38,6 @@ def _main(cfg):
     metafile = OmegaConf.load(cfg.dataset.metafile_path)
     n_samples = len(metafile)
     train_size = int(n_samples * cfg.dataset.train_ratio)
-    test_size = n_samples - train_size
     
     train_dataset = TextImageDataset(
         metafile[:train_size],
@@ -67,7 +67,7 @@ def _main(cfg):
         num_workers=cfg.train.num_workers
     )
     
-    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.train.lr)
+    optimizer = get_optimizer(cfg.optimizer, model)
     
     for epoch in range(cfg.train.epochs):
         model.train()

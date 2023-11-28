@@ -21,3 +21,4 @@ yes | conda install pytorch==2.0.0 torchvision==0.15.0 torchaudio==2.0.0 pytorch
 yes | pip install transformers
 yes | pip intsall hydra-core
 yes | pip intsall hydra-colorlog
+yes | pip install torchmetrics
