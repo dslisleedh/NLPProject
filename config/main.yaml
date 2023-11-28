@@ -1,0 +1,19 @@
+defaults:
+  - image_statistic@_global_: imagenet  # Override dataset's normalizing statistics.
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+
+# hydra and directory-related settings.
+log_prefix: ./logs
+hydra:
+  run:
+    dir: ${log_prefix}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+  sweep:
+    dir: ${log_prefix}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+    subdir: ''
+
+  job:
+    chdir: True
+    env_set:
+      CUDA_VISIBLE_DEVICES: 0
+      # API_KEY: 1234.....

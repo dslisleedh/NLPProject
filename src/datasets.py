@@ -13,16 +13,20 @@ import logging
 logger = logging.getLogger('Datasets')
 
 colors = ['red', 'green', 'blue', 'yellow', 'orange', 'purple', 'pink', 'brown', 'black', 'white', 'gray', 'grey']
-pronouns = ['he', 'she', 'they', 'it']
+pronouns = [
+    'he', 'she', 'they', 'it',
+    'He', 'She', 'They', 'It',
+]
 
 
 class TextImageDataset(Dataset):
     def __init__(
-        self, metadata: dict, permute_colors: bool, permute_pronouns: bool,
+        self, metadata: dict, processor, permute_colors: bool, permute_pronouns: bool,
         img_size: int = 224
     ):
         super().__init__()
         self.metadata = metadata
+        self.processor = processor
         self.img_size = img_size
         self.permute_colors = permute_colors
         self.permute_pronouns = permute_pronouns
@@ -51,9 +55,10 @@ class TextImageDataset(Dataset):
             # If text contains pronouns, Change pronouns randomly to other pronouns
             if is_contain_pronoun:
                 text = self.permute_pronouns_in_text(text)
-                
-        return img, text
-    
+        
+        sample = self.processor(text=text, images=img, return_tensors="pt")
+        return sample
+        
     def permute_colors_in_text(self, text: str) -> str:
         # Change color words randomly to other colors
         random_color = random.choice(colors)
@@ -71,4 +76,3 @@ class TextImageDataset(Dataset):
             text = text.replace(p, random_pronoun)
             
         return text
-    
