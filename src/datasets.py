@@ -15,16 +15,11 @@ import os
 logger = logging.getLogger('Datasets')
 
 colors = ['red', 'green', 'blue', 'yellow', 'orange', 'purple', 'pink', 'brown', 'black', 'white', 'gray', 'grey']
-pronouns = [
-    'he', 'she', 'they', 'it',
-    'He', 'She', 'They', 'It',
-]
-
 
 class TextImageDataset(Dataset):
     def __init__(
         self, path: str, metadata: dict, processor,
-        permute_colors: bool, permute_pronouns: bool, img_size: int = 224
+        permute_colors: bool, img_size: int = 224
     ):
         super().__init__()
         self.path = path
@@ -33,7 +28,6 @@ class TextImageDataset(Dataset):
         self.processor = processor
         self.img_size = img_size
         self.permute_colors = permute_colors
-        self.permute_pronouns = permute_pronouns
         
         logger.info(f'Found {len(self)} samples')
         
@@ -54,14 +48,6 @@ class TextImageDataset(Dataset):
             # If text contains color words, Change color words randomly to other colors
             if is_contain_color:
                 text = self.permute_colors_in_text(text)
-            
-        if self.permute_pronouns:
-            # Check pronouns in text
-            is_contain_pronoun = any([pronoun in text for pronoun in pronouns])
-            
-            # If text contains pronouns, Change pronouns randomly to other pronouns
-            if is_contain_pronoun:
-                text = self.permute_pronouns_in_text(text)
         
         sample = self.processor(text=text, images=img, return_tensors="pt", padding="max_length", truncation=True, max_length=77)
         return {
@@ -77,14 +63,5 @@ class TextImageDataset(Dataset):
         
         for c in colors:
             text = text.replace(c, random_color)
-            
-        return text
-    
-    def permute_pronouns_in_text(self, text: str) -> str:
-        # Change pronouns randomly to other pronouns
-        random_pronoun = random.choice(pronouns)
-        
-        for p in pronouns:
-            text = text.replace(p, random_pronoun)
             
         return text
