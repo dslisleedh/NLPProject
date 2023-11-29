@@ -4,7 +4,9 @@ import torch.functional as F
 
 from src.datasets import TextImageDataset
 from test import test_model
-from utils import get_optimizer, seed_everything, EarlyStopping
+from utils import (
+    get_optimizer, get_scheduler, seed_everything, EarlyStopping
+)
 
 from torch.utils.data import Dataset, DataLoader
 
@@ -19,36 +21,41 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 import os
 
+import random
+
 
 logger = logging.getLogger('Train')
 
 
-def _main(cfg):
+def train(cfg):
     os.makedirs("./models", exist_ok=True)
     os.makedirs("./optimizers", exist_ok=True)
     
     model = CLIPModel.from_pretrained(cfg.model.name)
     processor = CLIPProcessor.from_pretrained(cfg.model.name)
     
-    metafile = OmegaConf.load(cfg.dataset.metafile_path)
-    n_samples = len(metafile)
-    train_size = int(n_samples * cfg.dataset.train_ratio)
+    metafile = OmegaConf.load(
+        os.path.join(cfg.dataset.dataset_path, 'metafile.yaml')
+    )
+    with open('./query.txt', 'w') as f:
+        f.write(metafile['question'])
     
     train_dataset = TextImageDataset(
-        metafile[:train_size],
+        cfg.dataset.dataset_path,
+        metafile['train_samples'],
         processor,
         cfg.dataset.permute_colors,
         cfg.dataset.permute_pronouns,
         cfg.dataset.img_size
     )
     test_dataset = TextImageDataset(
-        metafile[train_size:],
+        cfg.dataset.dataset_path,
+        metafile['test_samples'],
         processor,
-        cfg.dataset.permute_colors,
-        cfg.dataset.permute_pronouns,
+        False,
+        False,
         cfg.dataset.img_size
     )
-    
     train_loader = DataLoader(
         train_dataset,
         batch_size=cfg.train.batch_size,
@@ -62,10 +69,11 @@ def _main(cfg):
         num_workers=cfg.train.num_workers
     )
     
+    del metafile
+    
     optimizer = get_optimizer(cfg.optimizer, model)
-    
+    scheduler = get_scheduler(cfg.scheduler, optimizer) if cfg.scheduler.name is not None else None
     es = EarlyStopping(**cfg.early_stopping)
-    
     for epoch in range(1, cfg.train.epochs + 1):
         logger.info(f'Epoch {epoch} / {cfg.train.epochs}')
         
@@ -74,19 +82,19 @@ def _main(cfg):
         losses = []
         pbar = tqdm(train_loader, desc=f'Training ...')
         for batch in pbar:
-            optimizer.zero_grad()
-            
             del batch['labels']
-
             for k in batch:
                 batch[k] = batch[k].to(cfg.train.device)
             
             outputs = model(**batch, return_loss=True)
             loss = outputs.loss
             
+            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            
+            if scheduler is not None:
+                scheduler.step()
+                
             losses.append(loss.item())
             
         logger.info(f'Epoch {epoch} / {cfg.train.epochs} - Loss: {sum(losses) / len(losses)}')
@@ -97,7 +105,6 @@ def _main(cfg):
         
         # Early Stopping
         es(results, model)
-        
         if es.early_stop:
             logger.info('Early Stopping at Epoch {}'.format(epoch))
             break
@@ -109,10 +116,10 @@ def _main(cfg):
     logger.info('Training finished')
     
     
-@hydra.main(config_path='config', config_name='main')
+@hydra.main(config_path='config', config_name='train', version_base=None)
 def main(cfg: DictConfig):
-    seed_everything(cfg.seed)
-    _main(cfg)
+    seed_everything(cfg.train.seed)
+    train(cfg)
     
     
 if __name__ == '__main__':

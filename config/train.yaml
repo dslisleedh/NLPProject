@@ -1,0 +1,50 @@
+model:
+  name: openai/clip-vit-large-patch14
+
+dataset:
+  dataset_path: /home/dslisleedh/NLPProject/hpitp_dataset
+  train_ratio: 0.8
+  permute_colors: False
+  permute_pronouns: False
+  img_size: 224
+
+train:
+  seed: 42
+  batch_size: 8
+  num_workers: 4
+  epochs: 50
+
+optimizer:
+  name: AdamW
+  lr: !!float 2e-5
+
+scheduler: 
+  name: LinearWarmupCosineAnnealingLR
+  warmup_iter: 3
+  max_iter: ${train.epochs}
+  eta_min: !!float 1e-7
+  start_factor: 1e-3
+
+early_stopping:
+  criterion: recall_5
+  patience: 5
+  maximize: True
+
+defaults:
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+
+# hydra and directory-related settings.
+log_prefix: ./train_logs
+hydra:
+  run:
+    dir: ${log_prefix}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+  sweep:
+    dir: ${log_prefix}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+    subdir: ''
+
+  job:
+    chdir: True
+    env_set:
+      CUDA_VISIBLE_DEVICES: 0
+      # API_KEY: 1234.....

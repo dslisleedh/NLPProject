@@ -8,8 +8,10 @@ import os
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
-img_extension = ['.jpg', '.jpeg', '.png', '.bmp', '.gif'] # We only used png to make the dataset but just in case
+import random
 
+img_extension = ['.jpg', '.jpeg', '.png', '.bmp', '.gif'] # We only used png to make the dataset but just in case
+train_ratio = 0.8
 
 def main(image_path: str):
     # question = 'Please describe the specific pose of the man in this image. Describe in one sentence and only consider pose itself not additional information.'
@@ -32,12 +34,15 @@ def main(image_path: str):
     model = Blip2ForConditionalGeneration.from_pretrained("Salesforce/blip2-opt-6.7b", torch_dtype=torch.float16).to(device)
     metafile_dict = {
         "question": question,
-        "samples": {}
+        "train_ratio": train_ratio,
+        "train_samples": {},
+        "test_samples": {},
     }
     
+    outputs = []
     for img_dir in tqdm(imgs_dir):
         img = Image.open(img_dir).convert("RGB")
-        img_name = os.path.splitext(os.path.basename(img_dir))[0]
+        img_name = os.path.splitext(os.path.basename(img_dir))[0] + '.png'
         
         # Saleforce API        
         # image = vis_processors["eval"](img).unsqueeze(0).to(device)
@@ -53,8 +58,18 @@ def main(image_path: str):
         answer = processor.batch_decode(answer_ids, skip_special_tokens=True)[0].strip()
         print(answer)
         
-        metafile_dict["samples"][img_name] = answer
+        outputs.append(
+            {'img_dir': img_name, 'answer': answer}
+        )
 
+    random.shuffle(outputs)
+    
+    train_size = int(len(outputs) * train_ratio)
+    train_outputs = outputs[:train_size]
+    test_outputs = outputs[train_size:]
+    
+    metafile_dict['train_samples'] = train_outputs
+    metafile_dict['test_samples'] = test_outputs
     # Save metafile
     OmegaConf.save(OmegaConf.create(metafile_dict), f'{metafile_dir}/metafile.yaml')
     

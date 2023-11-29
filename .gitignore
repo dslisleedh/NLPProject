@@ -2,3 +2,7 @@
 aaa.yaml
 sandbox.ipynb
 src/__pycache__/datasets.cpython-310.pyc
+/train_logs
+src/__pycache__/scheduler.cpython-310.pyc
+__pycache__/test.cpython-310.pyc
+__pycache__/utils.cpython-310.pyc

@@ -40,10 +40,11 @@ class TextImageDataset(Dataset):
     def __len__(self) -> int:
         return len(self.metadata)
     
-    def __getitem__(self, idx: int) -> tuple:
-        img_path, text = list(self.metadata[idx].items())[0]
+    def __getitem__(self, idx: int) -> dict:
+        img_path = self.metadata[idx]['img_dir']
+        text = self.metadata[idx]['answer']
         img = Image.open(
-            os.path.join(self.img_path, img_path) + '.png'
+            os.path.join(self.img_path, img_path)
         ).convert("RGB").resize((self.img_size, self.img_size))
         
         if self.permute_colors:
@@ -62,7 +63,7 @@ class TextImageDataset(Dataset):
             if is_contain_pronoun:
                 text = self.permute_pronouns_in_text(text)
         
-        sample = self.processor(text=text, images=img, return_tensors="pt", max_length=77, padding="max_length", truncation=True)
+        sample = self.processor(text=text, images=img, return_tensors="pt", padding="max_length", truncation=True, max_length=77)
         return {
             'input_ids': sample['input_ids'][0],
             'attention_mask': sample['attention_mask'][0],

@@ -7,6 +7,10 @@ import torchmetrics as tm
 
 import logging
 
+import hydra
+from omegaconf import DictConfig, OmegaConf
+
+
 logger = logging.getLogger('Test')
 
 
@@ -24,6 +28,7 @@ def test_model(test_loader: torch.utils.data.DataLoader, model: nn.Module, devic
         text_embeddings = []
         labels = []
         
+        # Fisrt get all image/text embeddings
         for batch in test_loader:
             labels.append(batch['label'].cpu())
             
@@ -60,9 +65,14 @@ def test_model(test_loader: torch.utils.data.DataLoader, model: nn.Module, devic
     return results
 
 
-if __name__ == '__main__':
-    # TODO:
-    # 1. Load model from config
-    #  ** If not specify load_from, load clip pre-trained model from huggingface
-    # 2. Test and log results
+# TODO:
+# 1. Load model from config
+#  ** If not specify load_from, load clip pre-trained model from huggingface
+# 2. Test and log results
+@hydra.main(config_path='config', config_name='test')
+def main(cfg: DictConfig):
     ...
+
+
+if __name__ == '__main__':
+    main()

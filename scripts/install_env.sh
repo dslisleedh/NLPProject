@@ -14,7 +14,7 @@ yes | mim install mmengine
 yes | mim install "mmcv>=2.0.0"
 yes | mim install mmdet
 
-# BLIP
+# BLIP and CLIP
 conda activate nlpproject_blip
 yes | conda install pytorch==2.0.0 torchvision==0.15.0 torchaudio==2.0.0 pytorch-cuda=11.8 -c pytorch -c nvidia
 
@@ -22,3 +22,4 @@ yes | pip install transformers
 yes | pip intsall hydra-core
 yes | pip intsall hydra-colorlog
 yes | pip install torchmetrics
+yes | pip install timm
