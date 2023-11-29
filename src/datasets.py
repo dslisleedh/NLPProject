@@ -9,6 +9,8 @@ import random
 
 import logging
 
+import os
+
 
 logger = logging.getLogger('Datasets')
 
@@ -21,10 +23,12 @@ pronouns = [
 
 class TextImageDataset(Dataset):
     def __init__(
-        self, metadata: dict, processor, permute_colors: bool, permute_pronouns: bool,
-        img_size: int = 224
+        self, path: str, metadata: dict, processor,
+        permute_colors: bool, permute_pronouns: bool, img_size: int = 224
     ):
         super().__init__()
+        self.path = path
+        self.img_path = os.path.join(path, 'images')
         self.metadata = metadata
         self.processor = processor
         self.img_size = img_size
@@ -37,8 +41,10 @@ class TextImageDataset(Dataset):
         return len(self.metadata)
     
     def __getitem__(self, idx: int) -> tuple:
-        img_path, text = self.metadata[idx]
-        img = Image.open(img_path).convert("RGB").resize((self.img_size, self.img_size))
+        img_path, text = list(self.metadata[idx].items())[0]
+        img = Image.open(
+            os.path.join(self.img_path, img_path) + '.png'
+        ).convert("RGB").resize((self.img_size, self.img_size))
         
         if self.permute_colors:
             # Check color words in text
@@ -56,8 +62,13 @@ class TextImageDataset(Dataset):
             if is_contain_pronoun:
                 text = self.permute_pronouns_in_text(text)
         
-        sample = self.processor(text=text, images=img, return_tensors="pt")
-        return sample
+        sample = self.processor(text=text, images=img, return_tensors="pt", max_length=77, padding="max_length", truncation=True)
+        return {
+            'input_ids': sample['input_ids'][0],
+            'attention_mask': sample['attention_mask'][0],
+            'pixel_values': sample['pixel_values'][0],
+            'labels': torch.tensor([idx])
+        }
         
     def permute_colors_in_text(self, text: str) -> str:
         # Change color words randomly to other colors

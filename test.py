@@ -10,56 +10,49 @@ import logging
 logger = logging.getLogger('Test')
 
 
-"""
-TODO:
-    1. Get Cosine Similarity between image and text using CLIP
-    2. Check Recall@1, Recall@5, Precision@1, Precision@5
-"""
-
-
 def test_model(test_loader: torch.utils.data.DataLoader, model: nn.Module, device: str):
     model.eval()
     
     # Metrics
-    recall_1 = tm.Recall(num_classes=1, average='micro')
-    recall_5 = tm.Recall(num_classes=5, average='micro')
-    precision_1 = tm.Precision(num_classes=1, average='micro')
-    precision_5 = tm.Precision(num_classes=5, average='micro')
+    recall_1 = tm.Recall(num_classes=1, average='micro').to(device)
+    recall_5 = tm.Recall(num_classes=5, average='micro').to(device)
+    precision_1 = tm.Precision(num_classes=1, average='micro').to(device)
+    precision_5 = tm.Precision(num_classes=5, average='micro').to(device)
     
     with torch.no_grad():
+        img_embeddings = []
+        text_embeddings = []
+        labels = []
+        
         for batch in test_loader:
-            images, texts, labels = batch
-            images = images.to(device)
-            texts = texts.to(device)
-            labels = labels.to(device)
+            labels.append(batch['label'].cpu())
             
-            # Get cosine similarity
-            outputs = model(images, texts)
-            similarity = outputs.logits
+            del batch['label']
             
-            # Get top 5 indices
-            _, indices = torch.topk(similarity, 5)
+            for k, v in batch.items():
+                batch[k] = v.to(device)
+                
+            outputs = model(**batch, return_loss=False)
+             
+            img_embeddings.append(outputs.image_embeds.cpu())
+            text_embeddings.append(outputs.text_embeds.cpu())
             
-            # Get top 1 indices
-            _, index = torch.topk(similarity, 1)
-            
-            # Get top 5 predictions
-            predictions_5 = labels[indices]
-            
-            # Get top 1 predictions
-            predictions_1 = labels[index]
-            
-            # Update metrics
-            recall_1(predictions_1, labels)
-            recall_5(predictions_5, labels)
-            precision_1(predictions_1, labels)
-            precision_5(predictions_5, labels)
-    
+        img_embeddings = torch.cat(img_embeddings, dim=0).to(device)
+        text_embeddings = torch.cat(text_embeddings, dim=0).to(device)
+        labels = torch.cat(labels, dim=0).to(device)
+        
+        probs_img_to_text = (img_embeddings @ text_embeddings.T).softmax(dim=-1)
+        
+        recall_1.update(probs_img_to_text, labels)
+        recall_5.update(probs_img_to_text, labels)
+        precision_1.update(probs_img_to_text, labels)
+        precision_5.update(probs_img_to_text, labels)
+        
     results = {
-        "recall_1": recall_1.compute(),
-        "recall_5": recall_5.compute(),
-        "precision_1": precision_1.compute(),
-        "precision_5": precision_5.compute()
+        "recall_1": recall_1.compute().item(),
+        "recall_5": recall_5.compute().item(),
+        "precision_1": precision_1.compute().item(),
+        "precision_5": precision_5.compute().item(),
     }
     for k, v in results.items():
         logger.info(f'{k}: {v}')
@@ -68,4 +61,8 @@ def test_model(test_loader: torch.utils.data.DataLoader, model: nn.Module, devic
 
 
 if __name__ == '__main__':
+    # TODO:
+    # 1. Load model from config
+    #  ** If not specify load_from, load clip pre-trained model from huggingface
+    # 2. Test and log results
     ...

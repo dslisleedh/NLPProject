@@ -4,7 +4,7 @@ import torch.functional as F
 
 from src.datasets import TextImageDataset
 from test import test_model
-from utils import get_optimizer
+from utils import get_optimizer, seed_everything, EarlyStopping
 
 from torch.utils.data import Dataset, DataLoader
 
@@ -13,25 +13,20 @@ from transformers import CLIPProcessor, CLIPModel
 from PIL import Image
 
 import logging
+from tqdm import tqdm
 
 import hydra
 from omegaconf import DictConfig, OmegaConf
+import os
 
 
 logger = logging.getLogger('Train')
 
 
-def calculate_loss(logits):
-    n = logits.shape[0]
-    labels = torch.arange(n).to(logits.device)
-    
-    loss_i = F.cross_entropy(logits, labels)
-    loss_j = F.cross_entropy(logits.T, labels)
-    
-    return (loss_i + loss_j) / 2
-
-
 def _main(cfg):
+    os.makedirs("./models", exist_ok=True)
+    os.makedirs("./optimizers", exist_ok=True)
+    
     model = CLIPModel.from_pretrained(cfg.model.name)
     processor = CLIPProcessor.from_pretrained(cfg.model.name)
     
@@ -69,24 +64,56 @@ def _main(cfg):
     
     optimizer = get_optimizer(cfg.optimizer, model)
     
-    for epoch in range(cfg.train.epochs):
+    es = EarlyStopping(**cfg.early_stopping)
+    
+    for epoch in range(1, cfg.train.epochs + 1):
+        logger.info(f'Epoch {epoch} / {cfg.train.epochs}')
+        
+        # Train
         model.train()
-        for batch in train_loader:
+        losses = []
+        pbar = tqdm(train_loader, desc=f'Training ...')
+        for batch in pbar:
             optimizer.zero_grad()
             
-            outputs = model(**batch)
-            loss = calculate_loss(outputs.logits)
+            del batch['labels']
+
+            for k in batch:
+                batch[k] = batch[k].to(cfg.train.device)
+            
+            outputs = model(**batch, return_loss=True)
+            loss = outputs.loss
             
             loss.backward()
             optimizer.step()
-        
+            
+            losses.append(loss.item())
+            
+        logger.info(f'Epoch {epoch} / {cfg.train.epochs} - Loss: {sum(losses) / len(losses)}')
+            
+        # Test
         model.eval()
-        with torch.no_grad():
-            for batch in test_loader:
-                outputs = model(**batch)
-                loss = calculate_loss(outputs.logits)
+        results = test_model(test_loader, model, cfg.train.device)
         
-        logger.info(f'Epoch {epoch}: Loss = {loss.item():.4f}')
+        # Early Stopping
+        es(results, model)
         
-    torch.save(model.state_dict(), cfg.train.save_path)
+        if es.early_stop:
+            logger.info('Early Stopping at Epoch {}'.format(epoch))
+            break
+        
+        # Save model
+        torch.save(model.state_dict(), f'./models/{epoch}.pt')
+        torch.save(optimizer.state_dict(), f'./optimizers/{epoch}.pt')
+        
+    logger.info('Training finished')
     
+    
+@hydra.main(config_path='config', config_name='main')
+def main(cfg: DictConfig):
+    seed_everything(cfg.seed)
+    _main(cfg)
+    
+    
+if __name__ == '__main__':
+    main()
