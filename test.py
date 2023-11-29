@@ -10,29 +10,38 @@ import logging
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
+from tqdm import tqdm
+
 
 logger = logging.getLogger('Test')
+
+
+def calc_recall_at_k(T, Y, k):
+    """
+    T : [nb_samples] (target labels)
+    Y : [nb_samples x k] (k predicted labels/neighbours)
+    """
+    s = 0
+    for t,y in zip(T,Y):
+        if t in torch.Tensor(y).long()[:k]:
+            s += 1
+    return s / (1. * len(T))
 
 
 def test_model(test_loader: torch.utils.data.DataLoader, model: nn.Module, device: str):
     model.eval()
     
-    # Metrics
-    recall_1 = tm.Recall(num_classes=1, average='micro').to(device)
-    recall_5 = tm.Recall(num_classes=5, average='micro').to(device)
-    precision_1 = tm.Precision(num_classes=1, average='micro').to(device)
-    precision_5 = tm.Precision(num_classes=5, average='micro').to(device)
-    
-    with torch.no_grad():
+    with torch.inference_mode():
         img_embeddings = []
         text_embeddings = []
         labels = []
         
         # Fisrt get all image/text embeddings
-        for batch in test_loader:
-            labels.append(batch['label'].cpu())
+        pbar = tqdm(test_loader, desc='Testing ...')
+        for batch in pbar:
+            labels.append(batch['labels'].cpu())
             
-            del batch['label']
+            del batch['labels']
             
             for k, v in batch.items():
                 batch[k] = v.to(device)
@@ -47,32 +56,34 @@ def test_model(test_loader: torch.utils.data.DataLoader, model: nn.Module, devic
         labels = torch.cat(labels, dim=0).to(device)
         
         probs_img_to_text = (img_embeddings @ text_embeddings.T).softmax(dim=-1)
-        
-        recall_1.update(probs_img_to_text, labels)
-        recall_5.update(probs_img_to_text, labels)
-        precision_1.update(probs_img_to_text, labels)
-        precision_5.update(probs_img_to_text, labels)
-        
+    
+    pred_top_1 = probs_img_to_text.topk(1, dim=-1).indices
+    pred_top_5 = probs_img_to_text.topk(5, dim=-1).indices
+    
+    recall_at_1 = calc_recall_at_k(labels, pred_top_1, 1)
+    recall_at_5 = calc_recall_at_k(labels, pred_top_5, 5)
+    recall_at_20 = calc_recall_at_k(labels, pred_top_5, 20)
+    
     results = {
-        "recall_1": recall_1.compute().item(),
-        "recall_5": recall_5.compute().item(),
-        "precision_1": precision_1.compute().item(),
-        "precision_5": precision_5.compute().item(),
+        'recall_at_1': recall_at_1,
+        'recall_at_5': recall_at_5,
+        'recall_at_20': recall_at_20
     }
+    
     for k, v in results.items():
         logger.info(f'{k}: {v}')
         
     return results
 
 
-# TODO:
-# 1. Load model from config
-#  ** If not specify load_from, load clip pre-trained model from huggingface
-# 2. Test and log results
-@hydra.main(config_path='config', config_name='test')
-def main(cfg: DictConfig):
-    ...
+# # TODO:
+# # 1. Load model from config
+# #  ** If not specify load_from, load clip pre-trained model from huggingface
+# # 2. Test and log results
+# @hydra.main(config_path='config', config_name='test')
+# def main(cfg: DictConfig):
+#     ...
 
 
-if __name__ == '__main__':
-    main()
+# if __name__ == '__main__':
+#     main()
