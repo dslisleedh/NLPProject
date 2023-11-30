@@ -5,6 +5,7 @@ import torch.nn.functional as F
 
 import timm.optim as toptim
 from src.scheduler import get_scheduler
+from src.model import get_model
 
 import numpy as np
 import random

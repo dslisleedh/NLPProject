@@ -1,28 +1,37 @@
 model:
-  name: openai/clip-vit-large-patch14
+  name: openai/clip-vit-large-patch14-336
+  model_config:
+    vision_config:
+      variant: resnet50
+  prompt_learning: True
+  prompt_from_visual_tokens: True
+  auxiliary_model: False
+  m2_loss: False
 
 dataset:
   dataset_path: /home/dslisleedh/NLPProject/hpitp_dataset
   train_ratio: 0.8
   permute_colors: False
-  img_size: 224
+  # img_size: 224
+  img_size: 336
 
 train:
   device: cuda:0
   seed: 42
-  batch_size: 16
+  batch_size: 8
   num_workers: 4
   epochs: 50
 
 optimizer:
-  name: AdamW
+  name: AdaBelief
   lr: !!float 2e-5
+  rectify: False
 
 scheduler: 
-  name: LinearWarmupCosineAnnealingLR
+  name: LinearWarmupLinearDecayLR
   warmup_iter: 3
   max_iter: ${train.epochs}
-  eta_min: !!float 1e-7
+  eta_min: !!float 1e-3
   start_factor: 1e-3
 
 early_stopping:

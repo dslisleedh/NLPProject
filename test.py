@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 
 from transformers import CLIPProcessor, CLIPModel
+from src.datasets import TextImageDataset
 
 import torchmetrics as tm
 
@@ -77,14 +78,28 @@ def test_model(test_loader: torch.utils.data.DataLoader, model: nn.Module, devic
     return results
 
 
-# # TODO:
-# # 1. Load model from config
-# #  ** If not specify load_from, load clip pre-trained model from huggingface
-# # 2. Test and log results
-# @hydra.main(config_path='config', config_name='test')
-# def main(cfg: DictConfig):
-#     ...
-
-
-# if __name__ == '__main__':
-#     main()
+# TODO:
+# 1. Load model from config
+#  ** If not specify load_from, load clip pre-trained model from huggingface
+# 2. Test and log results
+if __name__ == '__main__':
+    @hydra.main(config_path='config', config_name='test', version_base=None)
+    def main(cfg: DictConfig):
+        metadata = OmegaConf.load(cfg.dataset.dataset_path)
+        processor = CLIPProcessor.from_pretrained(cfg.model.pretrained_model_name)
+        test_dataset = TextImageDataset(
+            metadata=metadata['test_samples'],
+            processor=processor,
+            permute_colors=False,
+            img_size=cfg.dataset.img_size
+        )
+        
+        # 1. If there's no load_from
+        # Codes that load model from huggingface and test
+        
+        # 2. Load model from load_from
+        # Codes that load model from load_from and test
+        
+        # 3. Test!
+        
+        # 4. Log results

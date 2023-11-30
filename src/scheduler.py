@@ -12,7 +12,7 @@ scheduler_logger = logging.getLogger('scheduler')
 
 scheduler_all = optim.lr_scheduler.__all__
 custom_optimizers_all = [
-    'LinearWarmupCosineAnnealingLR', 'ConstantMultiplicativeLR'
+    'LinearWarmupCosineAnnealingLR', 'ConstantMultiplicativeLR', 'LinearWarmupLinearDecayLR'
 ]
 __all__ = scheduler_all + custom_optimizers_all
 
@@ -31,6 +31,24 @@ class LinearWarmupCosineAnnealingLR(optim.lr_scheduler.SequentialLR):
         scheduler = [warmup_scheduler, cosine_scheduler]
         milestones = [warmup_iter]
         super(LinearWarmupCosineAnnealingLR, self).__init__(
+            opt, schedulers=scheduler, milestones=milestones
+        )
+
+
+class LinearWarmupLinearDecayLR(optim.lr_scheduler.SequentialLR):
+    def __init__(
+            self, opt: optim.Optimizer, warmup_iter: int, max_iter: int, eta_min: float = 0.,
+            start_factor: float = 1e-4,
+    ):
+        warmup_scheduler = optim.lr_scheduler.LinearLR(
+            opt, start_factor=start_factor, end_factor=1., total_iters=warmup_iter
+        )
+        decay_scheduler = optim.lr_scheduler.LinearLR(
+            opt, start_factor=1., end_factor=eta_min, total_iters=max_iter - warmup_iter
+        )
+        scheduler = [warmup_scheduler, decay_scheduler]
+        milestones = [warmup_iter]
+        super(LinearWarmupLinearDecayLR, self).__init__(
             opt, schedulers=scheduler, milestones=milestones
         )
 

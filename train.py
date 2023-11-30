@@ -5,7 +5,8 @@ import torch.functional as F
 from src.datasets import TextImageDataset
 from test import test_model
 from utils import (
-    get_optimizer, get_scheduler, seed_everything, EarlyStopping
+    get_optimizer, get_scheduler, get_model, seed_everything, 
+    EarlyStopping
 )
 
 from torch.utils.data import Dataset, DataLoader
@@ -34,7 +35,7 @@ def train(cfg):
     tb_logger = SummaryWriter("./tb_logs")
     step = 0
     
-    model = CLIPModel.from_pretrained(cfg.model.name).to(cfg.train.device)
+    model = get_model(cfg.model).to(cfg.train.device)
     processor = CLIPProcessor.from_pretrained(cfg.model.name)
     
     metafile = OmegaConf.load(
@@ -126,14 +127,15 @@ def train(cfg):
         torch.save(model.state_dict(), f'./models/{epoch}.pt')
         torch.save(optimizer.state_dict(), f'./optimizers/{epoch}.pt')
     
-    if es is not None:
-        model.load_state_dict(es.best_state_dict_model)
+    # if es is not None:
+    #     model.load_state_dict(es.best_state_dict_model)
     
     logger.info('Training finished')
     
     
 @hydra.main(config_path='config', config_name='train', version_base=None)
 def main(cfg: DictConfig):
+    logger.info(OmegaConf.to_yaml(cfg))
     seed_everything(cfg.train.seed)
     train(cfg)
     
