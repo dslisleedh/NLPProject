@@ -9,6 +9,7 @@ from utils import (
 )
 
 from torch.utils.data import Dataset, DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 from transformers import CLIPProcessor, CLIPModel
 
@@ -30,6 +31,8 @@ logger = logging.getLogger('Train')
 def train(cfg):
     os.makedirs("./models", exist_ok=True)
     os.makedirs("./optimizers", exist_ok=True)
+    tb_logger = SummaryWriter("./tb_logs")
+    step = 0
     
     model = CLIPModel.from_pretrained(cfg.model.name).to(cfg.train.device)
     processor = CLIPProcessor.from_pretrained(cfg.model.name)
@@ -97,8 +100,11 @@ def train(cfg):
             optimizer.step()
                 
             losses.append(loss.item())
+            tb_logger.add_scalar('Train/loss', loss.item(), step)
+            step += 1
             
         logger.info(f'Epoch {epoch} / {cfg.train.epochs} - Loss: {sum(losses) / len(losses)}')
+        tb_logger.add_scalar('Train/epoch_loss', sum(losses) / len(losses), epoch)
         
         if scheduler is not None:
             scheduler.step()
@@ -106,6 +112,8 @@ def train(cfg):
         # Test
         model.eval()
         results = test_model(test_loader, model, cfg.train.device)
+        for k, v in results.items():
+            tb_logger.add_scalar(f'Test/{k}', v, epoch)
         
         # Early Stopping
         if es is not None:

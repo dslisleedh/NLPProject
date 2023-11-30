@@ -23,3 +23,5 @@ yes | pip intsall hydra-core
 yes | pip intsall hydra-colorlog
 yes | pip install torchmetrics
 yes | pip install timm
+yes | pip install tb-nightly
+

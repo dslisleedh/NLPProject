@@ -26,7 +26,7 @@ scheduler:
   start_factor: 1e-3
 
 early_stopping:
-  criterion: recall_5
+  criterion: recall_at_5
   patience: 5
   maximize: True
 
