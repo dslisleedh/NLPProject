@@ -59,10 +59,11 @@ def test_model(test_loader: torch.utils.data.DataLoader, model: nn.Module, devic
     
     pred_top_1 = probs_img_to_text.topk(1, dim=-1).indices
     pred_top_5 = probs_img_to_text.topk(5, dim=-1).indices
+    pred_top_20 = probs_img_to_text.topk(20, dim=-1).indices
     
     recall_at_1 = calc_recall_at_k(labels, pred_top_1, 1)
     recall_at_5 = calc_recall_at_k(labels, pred_top_5, 5)
-    recall_at_20 = calc_recall_at_k(labels, pred_top_5, 20)
+    recall_at_20 = calc_recall_at_k(labels, pred_top_20, 20)
     
     results = {
         'recall_at_1': recall_at_1,
