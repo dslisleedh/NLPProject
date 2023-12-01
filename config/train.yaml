@@ -3,8 +3,8 @@ model:
   model_config:
     vision_config:
       variant: resnet50
-  prompt_learning: True
-  prompt_from_visual_tokens: True
+  prompt_learning: False
+  prompt_from_visual_tokens: False
   auxiliary_model: False
   m2_loss: False
 
@@ -13,7 +13,7 @@ dataset:
   train_ratio: 0.8
   permute_colors: False
   # img_size: 224
-  img_size: 336
+  img_size: 224
 
 train:
   device: cuda:0

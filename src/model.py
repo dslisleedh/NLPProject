@@ -134,6 +134,7 @@ class CLIPModel(nn.Module):
             prompt = self.prompt.expand(image_embeds.shape[0], -1)
             if self.prompt_from_visual_tokens:
                 prompt = prompt + self.visual_prompt_conditioner(kwargs["pixel_values"])
+                
             text_embeds = self.get_text_normalized_feat(
                 kwargs["input_ids"], kwargs["attention_mask"], prompt
             )

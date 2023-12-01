@@ -43,7 +43,7 @@ class TextImageDataset(Dataset):
         
         if self.permute_colors:
             # Check color words in text
-            is_contain_color = all([color in text for color in colors])
+            is_contain_color = all([color in text.split(' ') for color in colors])
             
             # If text contains color words, Change color words randomly to other colors
             if is_contain_color:
@@ -61,7 +61,10 @@ class TextImageDataset(Dataset):
         # Change color words randomly to other colors
         random_color = random.choice(colors)
         
+        text = text.split(' ')
         for c in colors:
-            text = text.replace(c, random_color)
-            
+            if c in text:
+                text[text.index(c)] = random_color
+        
+        text = ' '.join(text)
         return text
