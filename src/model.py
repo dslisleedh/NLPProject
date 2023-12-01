@@ -8,10 +8,14 @@ TODO:
 
 
 HOW TO USE MULTIMODAL-MIXUP?
+
+Add Vision-Text Mixing Transformer to make Prompt Token? (Like BLIP2?)
 """
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+import einops
 
 from transformers import CLIPModel as CLIPModel_hf
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
@@ -28,6 +32,132 @@ import logging
 
 model_logger = logging.getLogger('model')
 
+
+"""
+Implement Q-former
+
+Which fuse CLS Token and given visual token
+"""
+class DropPath(nn.Module):
+    def __init__(self, drop_prob: float = 0.1):
+        super().__init__()
+        self.drop_prob = drop_prob
+        
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.training:
+            keep_prob = 1.0 - self.drop_prob
+            shape = (x.shape[0],) + (1,) * (x.ndim - 1)
+            random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
+            random_tensor.floor_()
+            output = x.div(keep_prob) * random_tensor
+        else:
+            output = x
+        return output
+
+
+class MHSA(nn.Module):
+    def __init__(
+        self, dim: int, embedding_dim: int, cross_attn: bool,
+        drop_rate: float = 0.1, heads: int = 8
+    ):
+        super().__init__()
+        self.dim = dim
+        self.heads = heads
+        self.cross_attn = cross_attn
+        
+        self.pre_norm = nn.LayerNorm(dim)
+        qk_inp_dim = embedding_dim if cross_attn else dim
+        self.to_q = nn.Linear(qk_inp_dim, dim, bias=False)
+        self.to_k = nn.Linear(qk_inp_dim, dim, bias=False)
+        self.to_v = nn.Linear(dim, dim, bias=False)
+        self.to_out = nn.Linear(dim, dim)
+        
+        self.q_norm = nn.LayerNorm(dim)
+        self.k_norm = nn.LayerNorm(dim)
+
+        self.path_drop = DropPath(drop_rate)
+        
+        nn.init.normal_(self.to_q.weight, std=0.02)
+        nn.init.normal_(self.to_k.weight, std=0.02)
+        nn.init.normal_(self.to_v.weight, std=0.02)
+        nn.init.normal_(self.to_out.weight, std=0.02)
+        
+    def forward(self, x: torch.Tensor, img_context: Optional[torch.Tensor] = None) -> torch.Tensor:
+        B, N, C = x.shape
+        # IMG_Context:
+        # B, 1, C
+        
+        x = self.pre_norm(x)
+        
+        if self.cross_attn:
+            q = self.to_q(img_context)
+            k = self.to_k(img_context)
+            v = self.to_v(x)
+            q = q.expand(-1, N, -1)
+            k = k.expand(-1, N, -1)
+        else:
+            q = self.to_q(x)
+            k = self.to_k(x)
+            v = self.to_v(x)
+            
+        q = einops.rearrange(q, 'b n (h d) -> b h n d', h=self.heads)
+        k = einops.rearrange(k, 'b n (h d) -> b h n d', h=self.heads)
+        v = einops.rearrange(v, 'b n (h d) -> b h n d', h=self.heads)
+        
+        score = q @ k.transpose(-2, -1) / (self.dim ** 0.5)
+        attn = score.softmax(dim=-1)
+        
+        out = einops.rearrange(attn @ v, 'b h n d -> b n (h d)')
+        out = self.to_out(out)
+        out = self.path_drop(out)
+        return out        
+    
+
+class QFormerBlock(nn.Module):
+    def __init__(
+        self, dim: int, embedding_dim: int, ffn_exp_ratio: int,
+        drop_rate: float = 0.1, heads: int = 8
+    ):
+        super().__init__()
+        self.self_attn = MHSA(dim, embedding_dim, cross_attn=False, drop_rate=drop_rate, heads=heads)
+        self.cross_attn = MHSA(dim, embedding_dim, cross_attn=True, drop_rate=drop_rate, heads=heads)
+        self.ffn = nn.Sequential(
+            nn.LayerNorm(dim),
+            nn.Linear(dim, dim * ffn_exp_ratio),
+            nn.GELU(),
+            nn.Linear(dim * ffn_exp_ratio, dim),
+            DropPath(drop_rate)
+        )
+        
+    def forward(self, x: torch.Tensor, img_context: torch.Tensor) -> torch.Tensor:
+        x = x + self.self_attn(x)
+        x = x + self.cross_attn(x, img_context)
+        x = x + self.ffn(x)
+        return x
+    
+
+class QFormer(nn.Module):
+    def __init__(
+        self, n_cls: int, dim: int, depth: int,
+        embedding_dim: int, ffn_exp_ratio: int, drop_rate: float = 0.1, heads: int = 8,
+    ):
+        super().__init__()
+        self.cls_token = nn.Parameter(torch.randn(1, n_cls, dim))
+        self.layers = nn.ModuleList([
+            QFormerBlock(dim, embedding_dim, ffn_exp_ratio, drop_rate, heads) for _ in range(depth)
+        ])
+        self.to_out = nn.Sequential(
+            nn.LayerNorm(dim),
+            nn.Linear(dim, dim)
+        )
+        
+    def forward(self, img_context: torch.Tensor) -> torch.Tensor:
+        B = img_context.shape[0]
+        cls_token = self.cls_token.expand(B, -1, -1)
+        for layer in self.layers:
+            cls_token = layer(cls_token, img_context)
+        return self.to_out(cls_token)
+    
 
 def _prepare_4d_attention_mask(mask: torch.Tensor, dtype: torch.dtype, tgt_len: Optional[int] = None):
     """
@@ -88,13 +218,14 @@ def clip_loss(similarity: torch.Tensor) -> torch.Tensor:
 class CLIPModel(nn.Module):
     def __init__(
         self, name: str, model_config: DictConfig, prompt_learning: bool = False,
-        prompt_from_visual_tokens: bool = False, auxiliary_model: bool = False, m2_loss: bool = False
+        n_prompt: int = 2, prompt_from_visual_tokens: bool = False, auxiliary_model: bool = False, m2_loss: bool = False
     ):
         super().__init__()
         # Dictconfig to dict
         # model_config_dict = OmegaConf.to_container(model_config)
         self.clip = CLIPModel_hf.from_pretrained(name)
         self.prompt_learning = prompt_learning
+        self.n_prompt = n_prompt
         self.prompt_from_visual_tokens = prompt_from_visual_tokens
         self.auxiliary_model = auxiliary_model
         self.m2_loss = m2_loss  # Multi-model geodesic loss
@@ -105,21 +236,15 @@ class CLIPModel(nn.Module):
 
         if self.prompt_learning:
             embedding_dim = self.clip.config.projection_dim
-            self.prompt = nn.Parameter(torch.randn(1, embedding_dim) * 0.02)
-            self.prompt.requires_grad = True
-            
             if self.prompt_from_visual_tokens:
-                self.visual_prompt_conditioner = nn.Sequential(
-                    nn.Conv2d(3, 32, 3, 1, 1),
-                    nn.ReLU(),
-                    nn.Conv2d(32, 64, 3, 1, 1),
-                    nn.ReLU(),
-                    nn.Conv2d(64, 128, 3, 1, 1),
-                    nn.ReLU(),
-                    nn.AdaptiveAvgPool2d(1),
-                    nn.Flatten(),
-                    nn.Linear(128, embedding_dim)
+                vision_embedding_dim = self.clip.vision_model.config.hidden_size
+                self.qformer = QFormer(
+                    self.n_prompt, embedding_dim, 8, vision_embedding_dim, 4, 0.1, 8
                 )
+            
+            else:
+                self.prompt = nn.Parameter(torch.randn(n_prompt, embedding_dim))
+                self.prompt.requires_grad = True
     
     def forward(self, **kwargs):
         if not self.prompt_learning and not self.auxiliary_model and not self.m2_loss:
@@ -129,11 +254,13 @@ class CLIPModel(nn.Module):
             raise NotImplementedError
         
         else:
-            image_embeds = self.get_visual_normalized_feat(kwargs["pixel_values"])
+            image_embeds, raw_image_embeds = self.get_visual_normalized_feat(kwargs["pixel_values"])
+            # Raw image embeds for Q-Former if needed
             
-            prompt = self.prompt.expand(image_embeds.shape[0], -1)
             if self.prompt_from_visual_tokens:
-                prompt = prompt + self.visual_prompt_conditioner(kwargs["pixel_values"])
+                prompt = self.qformer(raw_image_embeds.unsqueeze(1))
+            else:
+                prompt = self.prompt.expand(image_embeds.shape[0], -1)
                 
             text_embeds = self.get_text_normalized_feat(
                 kwargs["input_ids"], kwargs["attention_mask"], prompt
@@ -156,7 +283,6 @@ class CLIPModel(nn.Module):
             image_embeds=image_embeds,
         )
             
-    
     def get_visual_normalized_feat(self, pixel_values: torch.Tensor) -> torch.Tensor:
         output_attentions = self.clip.config.output_attentions
         output_hidden_states = (self.clip.config.output_hidden_states)
@@ -171,7 +297,7 @@ class CLIPModel(nn.Module):
         image_embeds = vision_outputs[1]
         image_embeds = self.clip.visual_projection(image_embeds)
         image_embeds = image_embeds / image_embeds.norm(p=2, dim=-1, keepdim=True)
-        return image_embeds
+        return image_embeds, vision_outputs[1]
     
     def get_text_normalized_feat(
         self, input_ids: torch.Tensor, attention_mask: torch.Tensor, prompt: torch.Tensor
@@ -181,14 +307,16 @@ class CLIPModel(nn.Module):
         return_dict = self.clip.config.use_return_dict
         input_shape = input_ids.size()
         input_shape = (
-            input_shape[0], input_shape[1] + 1
+            input_shape[0], input_shape[1] + self.n_prompt
         )
         
         hidden_states = self.clip.text_model.embeddings(input_ids=input_ids, position_ids=None)
         # Concat prompt to hidden states
-        hidden_states = torch.cat([prompt.unsqueeze(1), hidden_states], dim=1)
+        hidden_states = torch.cat([prompt, hidden_states], dim=1)
         # Add ones to attentionmask for prompt
-        attention_mask = torch.cat([torch.ones(attention_mask.shape[0], 1).to(hidden_states.device), attention_mask], dim=1)
+        attention_mask = torch.cat([
+            torch.ones(attention_mask.shape[0], self.n_prompt).to(hidden_states.device), attention_mask
+        ], dim=1)
         
         # CLIP's text model uses causal mask, prepare it here.
         # https://github.com/openai/CLIP/blob/cfcffb90e69f37bf2ff1e988237a0fbe41f33c04/clip/model.py#L324
@@ -209,7 +337,7 @@ class CLIPModel(nn.Module):
             return_dict=return_dict,
         )
         last_hidden_state = encoder_outputs[0]
-        last_hidden_state = self.clip.text_model.final_layer_norm(last_hidden_state[:, 1:])  # Drop the prompt
+        last_hidden_state = self.clip.text_model.final_layer_norm(last_hidden_state[:, self.n_prompt:])  # Drop the prompt
 
         if self.clip.text_model.eos_token_id == 2:
             # The `eos_token_id` was incorrect before PR #24773: Let's keep what have been done here.

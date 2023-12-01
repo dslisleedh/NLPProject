@@ -55,5 +55,5 @@ hydra:
   job:
     chdir: True
     env_set:
-      CUDA_VISIBLE_DEVICES: 0
+      CUDA_VISIBLE_DEVICES: 3
       # API_KEY: 1234.....
