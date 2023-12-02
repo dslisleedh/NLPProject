@@ -21,12 +21,28 @@ def calc_recall_at_k(T, Y, k):
     """
     T : [nb_samples] (target labels)
     Y : [nb_samples x k] (k predicted labels/neighbours)
+    
+    from https://github.com/tjddus9597/HIER-CVPR23/tree/mast
+    HIER(CVPR2023)
     """
     s = 0
     for t,y in zip(T,Y):
         if t in torch.Tensor(y).long()[:k]:
             s += 1
     return s / (1. * len(T))
+
+
+def calc_recall_at_k_fixed(Y: torch.Tensor, k: int):
+    """
+    Y : [nb_samples x k] (k predicted labels/neighbours)
+    
+    Fixed version of calc_recall_at_k which implemented by HIER(CVPR2023)
+    """
+    Y = Y.topk(k, dim=-1).indices
+    labels = torch.arange(Y.shape[0]).unsqueeze(-1).to(Y.device)
+    denom = Y.shape[0]
+    num = Y.eq(labels).any(dim=-1).sum().item()
+    return num / denom
 
 
 def test_model(test_loader: torch.utils.data.DataLoader, model: nn.Module, device: str):
@@ -58,13 +74,9 @@ def test_model(test_loader: torch.utils.data.DataLoader, model: nn.Module, devic
         
         probs_img_to_text = (img_embeddings @ text_embeddings.T).softmax(dim=-1)
     
-    pred_top_1 = probs_img_to_text.topk(1, dim=-1).indices
-    pred_top_5 = probs_img_to_text.topk(5, dim=-1).indices
-    pred_top_20 = probs_img_to_text.topk(20, dim=-1).indices
-    
-    recall_at_1 = calc_recall_at_k(labels, pred_top_1, 1)
-    recall_at_5 = calc_recall_at_k(labels, pred_top_5, 5)
-    recall_at_20 = calc_recall_at_k(labels, pred_top_20, 20)
+    recall_at_1 = calc_recall_at_k_fixed(probs_img_to_text, 1)
+    recall_at_5 = calc_recall_at_k_fixed(probs_img_to_text, 5)
+    recall_at_20 = calc_recall_at_k_fixed(probs_img_to_text, 20)
     
     results = {
         'recall_at_1': recall_at_1,
