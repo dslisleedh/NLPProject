@@ -26,4 +26,4 @@ python train.py model.name=openai/clip-vit-large-patch14-336\
     model.prompt_from_visual_tokens=True\
     model.n_prompt=64\
     train.batch_size=32\
-    hydra.job.env_set.CUDA_VISIBLE_DEVICES=3
+    hydra.job.env_set.CUDA_VISIBLE_DEVICES=1

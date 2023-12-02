@@ -51,15 +51,10 @@ def test_model(test_loader: torch.utils.data.DataLoader, model: nn.Module, devic
     with torch.inference_mode():
         img_embeddings = []
         text_embeddings = []
-        labels = []
-        
+
         # Fisrt get all image/text embeddings
         pbar = tqdm(test_loader, desc='Testing ...')
         for batch in pbar:
-            labels.append(batch['labels'].cpu())
-            
-            del batch['labels']
-            
             for k, v in batch.items():
                 batch[k] = v.to(device)
                 
@@ -70,7 +65,6 @@ def test_model(test_loader: torch.utils.data.DataLoader, model: nn.Module, devic
             
         img_embeddings = torch.cat(img_embeddings, dim=0).to(device)
         text_embeddings = torch.cat(text_embeddings, dim=0).to(device)
-        labels = torch.cat(labels, dim=0).to(device)
         
         probs_img_to_text = (img_embeddings @ text_embeddings.T).softmax(dim=-1)
     

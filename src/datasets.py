@@ -54,7 +54,6 @@ class TextImageDataset(Dataset):
             'input_ids': sample['input_ids'][0],
             'attention_mask': sample['attention_mask'][0],
             'pixel_values': sample['pixel_values'][0],
-            'labels': torch.tensor([idx])
         }
         
     def permute_colors_in_text(self, text: str) -> str:

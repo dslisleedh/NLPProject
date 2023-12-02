@@ -90,7 +90,6 @@ def train(cfg):
         losses = []
         pbar = tqdm(train_loader, desc=f'Training ...')
         for batch in pbar:
-            del batch['labels']
             for k in batch:
                 batch[k] = batch[k].to(cfg.train.device)
             
