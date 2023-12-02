@@ -77,9 +77,10 @@ def train(cfg):
     scheduler = get_scheduler(cfg.scheduler, optimizer) if cfg.scheduler.name is not None else None
     es = EarlyStopping(**cfg.early_stopping) if cfg.early_stopping.patience is not None else None
     
-    # Test model before training
-    logger.info('Test model before training')
-    results = test_model(test_loader, model, cfg.train.device)
+    # Test model before training if not prompt learning
+    if not cfg.model.prompt_learning:
+        logger.info('Test model before training')
+        results = test_model(test_loader, model, cfg.train.device)
     
     for epoch in range(1, cfg.train.epochs + 1):
         logger.info(f'Epoch {epoch} / {cfg.train.epochs}')

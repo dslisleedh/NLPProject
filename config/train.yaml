@@ -1,11 +1,15 @@
 model:
   name: openai/clip-vit-large-patch14-336
-  model_config:
-    vision_config:
-      variant: resnet50
   prompt_learning: False
   prompt_from_visual_tokens: False
+  qformer_config:
+    dim: 256
+    ffn_exp_ratio: 4
+    drop_rate: !!float 1e-1
+    heads: 4
+    depth: 8
   auxiliary_model: False
+  n_prompt: 2
   m2_loss: False
 
 dataset:

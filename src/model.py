@@ -99,7 +99,10 @@ class MHSA(nn.Module):
             q = self.to_q(x)
             k = self.to_k(x)
             v = self.to_v(x)
-            
+        
+        q = self.q_norm(q)
+        k = self.k_norm(k)
+        
         q = einops.rearrange(q, 'b n (h d) -> b h n d', h=self.heads)
         k = einops.rearrange(k, 'b n (h d) -> b h n d', h=self.heads)
         v = einops.rearrange(v, 'b n (h d) -> b h n d', h=self.heads)
@@ -140,15 +143,16 @@ class QFormer(nn.Module):
     def __init__(
         self, n_cls: int, dim: int, depth: int,
         embedding_dim: int, ffn_exp_ratio: int, drop_rate: float = 0.1, heads: int = 8,
+        out_dim: Optional[int] = None
     ):
         super().__init__()
-        self.cls_token = nn.Parameter(torch.randn(1, n_cls, dim))
+        self.cls_token = nn.Parameter(torch.randn(1, n_cls, dim), requires_grad=False)
         self.layers = nn.ModuleList([
             QFormerBlock(dim, embedding_dim, ffn_exp_ratio, drop_rate, heads) for _ in range(depth)
         ])
         self.to_out = nn.Sequential(
             nn.LayerNorm(dim),
-            nn.Linear(dim, dim)
+            nn.Linear(dim, out_dim)
         )
         
     def forward(self, img_context: torch.Tensor) -> torch.Tensor:
@@ -217,8 +221,9 @@ def clip_loss(similarity: torch.Tensor) -> torch.Tensor:
 
 class CLIPModel(nn.Module):
     def __init__(
-        self, name: str, model_config: DictConfig, prompt_learning: bool = False,
-        n_prompt: int = 2, prompt_from_visual_tokens: bool = False, auxiliary_model: bool = False, m2_loss: bool = False
+        self, name: str, qformer_config: DictConfig,
+        prompt_learning: bool = False, n_prompt: int = 2, prompt_from_visual_tokens: bool = False,
+        auxiliary_model: bool = False, m2_loss: bool = False
     ):
         super().__init__()
         # Dictconfig to dict
@@ -233,18 +238,24 @@ class CLIPModel(nn.Module):
         if self.prompt_learning or self.auxiliary_model:
             for param in self.clip.parameters():
                 param.requires_grad = False
-
+        """
+        self, n_cls: int, dim: int, depth: int,
+        embedding_dim: int, ffn_exp_ratio: int, drop_rate: float = 0.1, heads: int = 8,
+        out_dim: Optional[int] = None
+        """
         if self.prompt_learning:
-            embedding_dim = self.clip.config.projection_dim
             if self.prompt_from_visual_tokens:
                 vision_embedding_dim = self.clip.vision_model.config.hidden_size
-                self.qformer = QFormer(
-                    self.n_prompt, embedding_dim, 8, vision_embedding_dim, 4, 0.1, 8
-                )
+                out_dim = self.clip.config.projection_dim
+                qformer_kwargs = OmegaConf.to_container(qformer_config)
+                qformer_kwargs['embedding_dim'] = vision_embedding_dim
+                qformer_kwargs['out_dim'] = out_dim
+                qformer_kwargs['n_cls'] = n_prompt
+                self.qformer = QFormer(**qformer_kwargs)
             
             else:
-                self.prompt = nn.Parameter(torch.randn(n_prompt, embedding_dim))
-                self.prompt.requires_grad = True
+                embedding_dim = self.clip.config.projection_dim
+                self.prompt = nn.Parameter(torch.randn(n_prompt, embedding_dim), requires_grad=True)
     
     def forward(self, **kwargs):
         if not self.prompt_learning and not self.auxiliary_model and not self.m2_loss:
