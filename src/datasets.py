@@ -19,7 +19,7 @@ colors = ['red', 'green', 'blue', 'yellow', 'orange', 'purple', 'pink', 'brown',
 class TextImageDataset(Dataset):
     def __init__(
         self, path: str, metadata: dict, processor,
-        permute_colors: bool, img_size: int = 224
+        permute_colors: bool, to_full_sentence: bool, img_size: int = 224
     ):
         super().__init__()
         self.path = path
@@ -28,6 +28,7 @@ class TextImageDataset(Dataset):
         self.processor = processor
         self.img_size = img_size
         self.permute_colors = permute_colors
+        self.to_full_sentence = to_full_sentence
         
         logger.info(f'Found {len(self)} samples')
         
@@ -49,6 +50,9 @@ class TextImageDataset(Dataset):
             if is_contain_color:
                 text = self.permute_colors_in_text(text)
         
+        if self.to_full_sentence:
+            text = self.to_sentence(text)
+        
         sample = self.processor(text=text, images=img, return_tensors="pt", padding="max_length", truncation=True, max_length=77)
         return {
             'input_ids': sample['input_ids'][0],
@@ -67,3 +71,11 @@ class TextImageDataset(Dataset):
         
         text = ' '.join(text)
         return text
+
+    def to_sentence(self, text: str) -> str:
+        text_list = text.split(' ')
+        if len(text_list) == 1:
+            return "The action is " + text + "."
+        else:
+            return text
+        

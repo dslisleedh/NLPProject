@@ -25,3 +25,5 @@ yes | pip install torchmetrics
 yes | pip install timm
 yes | pip install tb-nightly
 yes | pip install einops
+
+git clone https://github.com/openai/CLIP.git

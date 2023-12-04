@@ -13,7 +13,7 @@ label = 0 # person label
 threshold = 0.8 # threshold for certainty. If this is low, more images will be cropped but some of them may not be human or partial human.
 enlarge_ratio = 0.2 # enlarge bbox by this ratio
 
-img_extension = ['.jpg', '.jpeg', '.png', '.bmp', '.gif']
+img_extension = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.JPEG', '.JPG', '.PNG', '.BMP', '.GIF']
 
 
 def main(dirs: Sequence[str], datasets: Optional[Sequence[str]] = None):  # dirs must be absolute paths
@@ -27,14 +27,18 @@ def main(dirs: Sequence[str], datasets: Optional[Sequence[str]] = None):  # dirs
     imgs = []
     ds = []
     for i, dir_ in enumerate(dirs):
-        imgs.append(
-            [os.path.join(dir_, img) for img in os.listdir(dir_) if os.path.splitext(img)[1] in img_extension]
-        )
-        if datasets is None:
-            ds.append(datasets[i] * len(imgs[-1]))
+        lists_cur = [os.path.join(dir_, img) for img in os.listdir(dir_) if os.path.splitext(img)[1] in img_extension]
+        imgs.append(lists_cur)
+        if datasets is not None:
+            if lists_cur == []:
+                continue
+            ds.append([datasets[i]] * len(lists_cur))
             
     imgs = sum(imgs, [])
     ds = sum(ds, [])
+    
+    assert len(imgs) == len(ds)
+    print('Number of images: ', len(imgs))
     
     cuda_available = torch.cuda.is_available()
     inferencer = DetInferencer(model=model, device='cuda:0' if cuda_available else 'cpu')
@@ -88,6 +92,15 @@ if __name__ == '__main__':
     # dirs = os.environ['IMAGEDIR']
     dirs = "/data/datasets/images,/data/datasets/DF2K/DF2K_train_HR,/data/datasets/LSDIR/Train/HR"
     datasets = "mpii,DF2K,LSDIR"
+    
+    imagenet_dirs = "/data/datasets/imagenet/train,/data/datasets/imagenet/val"
+    list_subdirs = []
+    for dir_ in imagenet_dirs.split(','):
+        list_subdirs += [os.path.join(dir_, subdir) for subdir in os.listdir(dir_) if os.path.isdir(os.path.join(dir_, subdir))]
+    imagenet_datasets = ",".join(list_subdirs)
+    dirs = dirs + "," + imagenet_datasets
+    datasets_list = ['ImageNet'] * len(list_subdirs)
+    datasets += "," + ",".join(datasets_list)
     
     # dir1, dir2, ...
     dirs = dirs.split(',')

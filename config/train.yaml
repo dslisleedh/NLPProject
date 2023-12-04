@@ -1,22 +1,21 @@
 model:
   name: openai/clip-vit-large-patch14-336
-  prompt_learning: False
-  prompt_from_visual_tokens: False
+  prompt_learning: True
+  prompt_from_visual_tokens: True
   qformer_config:
     dim: 256
-    ffn_exp_ratio: 4
+    ffn_exp_ratio: 2
     drop_rate: !!float 1e-1
     heads: 4
-    depth: 8
+    depth: 4
   auxiliary_model: False
   n_prompt: 2
   m2_loss: False
 
 dataset:
   dataset_path: /home/dslisleedh/NLPProject/hpitp_dataset
-  train_ratio: 0.8
   permute_colors: False
-  # img_size: 224
+  to_full_sentence: True
   img_size: 224
 
 train:

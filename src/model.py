@@ -1,15 +1,7 @@
 """
 TODO:
-1. Classic Huggingface Model (Fine tuning)
-2. Prompt Learning Model
-3. Prompt Learning From Visual tokens
-4. Auxiliary Model
-5. Focal loss instead of CE(becuase our dataset is so noisy)
-
-
-HOW TO USE MULTIMODAL-MIXUP?
-
-Add Vision-Text Mixing Transformer to make Prompt Token? (Like BLIP2?)
+    Change Code to use CLIP(Github) instead of CLIP(Huggingface)
+    To use More model and GradCAM.
 """
 import torch
 import torch.nn as nn
@@ -146,7 +138,8 @@ class QFormer(nn.Module):
         out_dim: Optional[int] = None
     ):
         super().__init__()
-        self.cls_token = nn.Parameter(torch.randn(1, n_cls, dim), requires_grad=False)
+        self.cls_token = nn.Parameter(torch.randn(1, n_cls, dim) * 0.02, requires_grad=False)
+        self.pos_embedding = nn.Parameter(torch.randn(1, n_cls, dim) * 0.01, requires_grad=True)
         self.layers = nn.ModuleList([
             QFormerBlock(dim, embedding_dim, ffn_exp_ratio, drop_rate, heads) for _ in range(depth)
         ])
@@ -157,7 +150,7 @@ class QFormer(nn.Module):
         
     def forward(self, img_context: torch.Tensor) -> torch.Tensor:
         B = img_context.shape[0]
-        cls_token = self.cls_token.expand(B, -1, -1)
+        cls_token = self.cls_token.expand(B, -1, -1) + self.pos_embedding
         for layer in self.layers:
             cls_token = layer(cls_token, img_context)
         return self.to_out(cls_token)

@@ -49,6 +49,7 @@ def train(cfg):
         metafile['train_samples'],
         processor,
         cfg.dataset.permute_colors,
+        cfg.dataset.to_full_sentence,
         cfg.dataset.img_size
     )
     test_dataset = TextImageDataset(
@@ -56,6 +57,7 @@ def train(cfg):
         metafile['test_samples'],
         processor,
         False,
+        True,
         cfg.dataset.img_size
     )
     train_loader = DataLoader(
