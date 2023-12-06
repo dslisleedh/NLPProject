@@ -11,7 +11,7 @@ from tqdm import tqdm
 import random
 
 img_extension = ['.jpg', '.jpeg', '.png', '.bmp', '.gif'] # We only used png to make the dataset but just in case
-train_ratio = 0.8
+train_ratio = 0.9
 
 def main(image_path: str):
     # question = 'Please describe the specific pose of the man in this image. Describe in one sentence and only consider pose itself not additional information.'
@@ -54,7 +54,7 @@ def main(image_path: str):
         inputs = processor(img, text=question, return_tensors="pt").to(device, torch.float16)
         # inputs = processor(img, return_tensors="pt").to(device, torch.float16)
         
-        answer_ids = model.generate(**inputs, max_new_tokens=20)
+        answer_ids = model.generate(**inputs, max_new_tokens=77)
         answer = processor.batch_decode(answer_ids, skip_special_tokens=True)[0].strip()
         print(answer)
         

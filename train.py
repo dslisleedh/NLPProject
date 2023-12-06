@@ -25,8 +25,26 @@ import os
 
 import random
 
+from typing import Optional
+
 
 logger = logging.getLogger('Train')
+
+
+def contrastive_loss(logits: torch.Tensor) -> torch.Tensor:
+    return -nn.LogSoftmax(dim=-1)(logits).diag().mean()
+
+def clip_loss(logits_per_image: torch.Tensor, logits_per_text: torch.Tensor) -> torch.Tensor:
+    img_loss = contrastive_loss(logits_per_image)
+    text_loss = contrastive_loss(logits_per_text)
+    return (img_loss + text_loss) / 2
+
+
+def geodesic_mix(lambda_mix, image_feat, text_feat):
+    theta = torch.acos((image_feat * text_feat).sum(dim=[1])).view(image_feat.shape[0], 1)
+    n1 = torch.sin(lambda_mix * theta) / torch.sin(theta) * image_feat
+    n2 = torch.sin((1 - lambda_mix) * theta) / torch.sin(theta) * text_feat
+    return n1 + n2
 
 
 def train(cfg):
@@ -35,8 +53,8 @@ def train(cfg):
     tb_logger = SummaryWriter("./tb_logs")
     step = 0
     
-    model = get_model(cfg.model).to(cfg.train.device)
-    processor = CLIPProcessor.from_pretrained(cfg.model.name)
+    model, processor = get_model(cfg.model)
+    model.to(cfg.train.device)
     
     metafile = OmegaConf.load(
         os.path.join(cfg.dataset.dataset_path, 'metafile.yaml')
@@ -79,7 +97,7 @@ def train(cfg):
     scheduler = get_scheduler(cfg.scheduler, optimizer) if cfg.scheduler.name is not None else None
     es = EarlyStopping(**cfg.early_stopping) if cfg.early_stopping.patience is not None else None
     
-    # Test model before training if not prompt learning
+    # Test model before training if not prompt learning. 
     if not cfg.model.prompt_learning:
         logger.info('Test model before training')
         results = test_model(test_loader, model, cfg.train.device)
@@ -95,14 +113,40 @@ def train(cfg):
             for k in batch:
                 batch[k] = batch[k].to(cfg.train.device)
             
-            outputs = model(**batch, return_loss=True)
-            loss = outputs.loss
+            image_feat = model.encode_image(batch['pixel_values'])
+            text_feat = model.encode_text(batch['input_ids'])
             
+            image_feat = image_feat / image_feat.norm(p=2, dim=1, keepdim=True)
+            text_feat = text_feat / text_feat.norm(p=2, dim=1, keepdim=True)
+            
+            t1 = model.logit_scale.exp()
+            logits_per_image = t1 * image_feat @ text_feat.t()
+            logits_per_text = logits_per_image.t()
+
+            loss = clip_loss(logits_per_image, logits_per_text)
+            
+            if cfg.model.m2_loss_weight is not None:
+                I = torch.eye(image_feat.shape[0], device=image_feat.device)
+                t2 = model.logit_scale_2.exp()
+                
+                lambda_mix = random.betavariate(2., 2.,)
+                
+                mix = geodesic_mix(lambda_mix, image_feat, text_feat)
+                
+                logits2_i = mix @ text_feat.t()
+                logits2_i = logits_per_image * I + logits2_i * (1 - I)
+                
+                logits2_t = mix @ image_feat.t()
+                logits2_t = logits_per_text * I + logits2_t * (1 - I)
+                
+                loss += cfg.model.m2_loss_weight * clip_loss(logits2_i * t2, logits2_t * t2)
+                
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
                 
             losses.append(loss.item())
+            pbar.set_postfix({'loss': sum(losses[:100]) / len(losses[:100])})
             tb_logger.add_scalar('Train/loss', loss.item(), step)
             step += 1
             

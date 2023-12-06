@@ -36,7 +36,7 @@ def calc_recall_at_k_fixed(Y: torch.Tensor, k: int):
     """
     Y : [nb_samples x k] (k predicted labels/neighbours)
     
-    Fixed version of calc_recall_at_k which implemented by HIER(CVPR2023)
+    Fixed version of calc_recall_at_k
     """
     Y = Y.topk(k, dim=-1).indices
     labels = torch.arange(Y.shape[0]).unsqueeze(-1).to(Y.device)
@@ -58,24 +58,27 @@ def test_model(test_loader: torch.utils.data.DataLoader, model: nn.Module, devic
             for k, v in batch.items():
                 batch[k] = v.to(device)
                 
-            outputs = model(**batch, return_loss=False)
-             
-            img_embeddings.append(outputs.image_embeds.cpu())
-            text_embeddings.append(outputs.text_embeds.cpu())
+            img_embedding = model.encode_image(batch['pixel_values'])
+            text_embedding = model.encode_text(batch['input_ids'])
+
+            img_embeddings.append(img_embedding.cpu())
+            text_embeddings.append(text_embedding.cpu())
             
         img_embeddings = torch.cat(img_embeddings, dim=0).to(device)
         text_embeddings = torch.cat(text_embeddings, dim=0).to(device)
         
-        probs_img_to_text = (img_embeddings @ text_embeddings.T).softmax(dim=-1)
+        probs_text_to_img = (text_embeddings @ img_embeddings.t()).softmax(dim=-1)
     
-    recall_at_1 = calc_recall_at_k_fixed(probs_img_to_text, 1)
-    recall_at_5 = calc_recall_at_k_fixed(probs_img_to_text, 5)
-    recall_at_20 = calc_recall_at_k_fixed(probs_img_to_text, 20)
+    recall_at_1 = calc_recall_at_k_fixed(probs_text_to_img, 1)
+    recall_at_5 = calc_recall_at_k_fixed(probs_text_to_img, 5)
+    recall_at_20 = calc_recall_at_k_fixed(probs_text_to_img, 20)
+    recall_at_100 = calc_recall_at_k_fixed(probs_text_to_img, 100)
     
     results = {
         'recall_at_1': recall_at_1,
         'recall_at_5': recall_at_5,
-        'recall_at_20': recall_at_20
+        'recall_at_20': recall_at_20,
+        'recall_at_100': recall_at_100
     }
     
     for k, v in results.items():
@@ -102,10 +105,18 @@ if __name__ == '__main__':
         
         # 1. If there's no load_from
         # Codes that load model from huggingface and test
+        ...
         
         # 2. Load model from load_from
         # Codes that load model from load_from and test
+        config = OmegaConf.load(cfg.model.load_from + './hydra/config.yaml')
+        ...
         
         # 3. Test!
+        ...
         
         # 4. Log results
+        ...
+        
+    main()
+    

@@ -1,16 +1,20 @@
 model:
-  name: openai/clip-vit-large-patch14-336
-  prompt_learning: True
-  prompt_from_visual_tokens: True
+  # ['RN50', 'RN101', 'RN50x4', 'RN50x16', 'RN50x64', 'ViT-B/32', 'ViT-B/16', 'ViT-L/14', 'ViT-L/14@336px']
+  name: RN50
+  prompt_learning: False
+  prompt_from_visual_tokens: False
   qformer_config:
-    dim: 256
-    ffn_exp_ratio: 2
+    dim: 1024
+    ffn_exp_ratio: 4
     drop_rate: !!float 1e-1
-    heads: 4
-    depth: 4
-  auxiliary_model: False
-  n_prompt: 2
-  m2_loss: False
+    heads: 8
+    depth: 12
+  n_prompt: 1
+  logit_scale: !!float 0.  # Consider exp(0) = 1
+  # Since below paper said that large logit_scale works like triplet loss without margin.
+  # For default(pre-trained) logit_scale, use 4.6052
+  m2_loss_weight: null
+  # https://github.com/changdaeoh/multimodal-mixup
 
 dataset:
   dataset_path: /home/dslisleedh/NLPProject/hpitp_dataset
@@ -21,24 +25,28 @@ dataset:
 train:
   device: cuda:0
   seed: 42
-  batch_size: 8
+  batch_size: 16
   num_workers: 4
   epochs: 50
 
+# Which is same as BLIP2 paper only change optimizer(AdamW -> AdaBelief)
+# Since AdamW + FP16 is not stable which causes NAN Grad.
 optimizer:
   name: AdaBelief
-  lr: !!float 2e-5
+  lr: !!float 1e-4
+  betas: [0.9, 0.98]
+  weight_decay: !!float 5e-2
   rectify: False
 
 scheduler: 
-  name: LinearWarmupLinearDecayLR
+  name: LinearWarmupCosineAnnealingLR
   warmup_iter: 3
   max_iter: ${train.epochs}
-  eta_min: !!float 1e-3
+  eta_min: !!float 5e-5
   start_factor: 1e-3
 
 early_stopping:
-  criterion: recall_at_5
+  criterion: recall_at_20
   patience: 5
   maximize: True
 
@@ -50,13 +58,13 @@ defaults:
 log_prefix: ./train_logs
 hydra:
   run:
-    dir: ${log_prefix}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+    dir: ${log_prefix}/${model.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
   sweep:
-    dir: ${log_prefix}/${now:%Y-%m-%d}_${now:%H-%M-%S}
+    dir: ${log_prefix}/${model.name}/${now:%Y-%m-%d}_${now:%H-%M-%S}
     subdir: ''
 
   job:
     chdir: True
-    env_set:
-      CUDA_VISIBLE_DEVICES: 3
-      # API_KEY: 1234.....
+    # env_set:
+    #   CUDA_VISIBLE_DEVICES: 3
+    #   # API_KEY: 1234.....

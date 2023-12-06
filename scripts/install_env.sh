@@ -13,6 +13,7 @@ yes | pip install -U openmim
 yes | mim install mmengine
 yes | mim install "mmcv>=2.0.0"
 yes | mim install mmdet
+yes | pip install ftfy regex tqdm
 
 # BLIP and CLIP
 conda activate nlpproject_blip
@@ -25,5 +26,6 @@ yes | pip install torchmetrics
 yes | pip install timm
 yes | pip install tb-nightly
 yes | pip install einops
+yes | pip install ftfy
 
 git clone https://github.com/openai/CLIP.git

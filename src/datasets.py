@@ -4,6 +4,8 @@ import torch.functional as F
 
 from torch.utils.data import Dataset
 
+from CLIP.clip import tokenize
+
 from PIL import Image
 import random
 
@@ -42,6 +44,8 @@ class TextImageDataset(Dataset):
             os.path.join(self.img_path, img_path)
         ).convert("RGB").resize((self.img_size, self.img_size))
         
+        img_token = self.processor(img)
+        
         if self.permute_colors:
             # Check color words in text
             is_contain_color = all([color in text.split(' ') for color in colors])
@@ -52,12 +56,13 @@ class TextImageDataset(Dataset):
         
         if self.to_full_sentence:
             text = self.to_sentence(text)
+            
+        text = text.lower()  # CLIP trained on lower-cased text
         
-        sample = self.processor(text=text, images=img, return_tensors="pt", padding="max_length", truncation=True, max_length=77)
+        text_token = tokenize(text, truncate=True)[0]
         return {
-            'input_ids': sample['input_ids'][0],
-            'attention_mask': sample['attention_mask'][0],
-            'pixel_values': sample['pixel_values'][0],
+            'input_ids': text_token,
+            'pixel_values': img_token,
         }
         
     def permute_colors_in_text(self, text: str) -> str:
