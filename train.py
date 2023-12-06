@@ -82,13 +82,15 @@ def train(cfg):
         train_dataset,
         batch_size=cfg.train.batch_size,
         shuffle=True,
-        num_workers=cfg.train.num_workers
+        num_workers=cfg.train.num_workers,
+        drop_last=True
     )
     test_loader = DataLoader(
         test_dataset,
         batch_size=cfg.train.batch_size,
         shuffle=False,
-        num_workers=cfg.train.num_workers
+        num_workers=cfg.train.num_workers,
+        drop_last=False
     )
     
     del metafile
