@@ -1,29 +1,43 @@
-# 1. fine tuning all clip model
-# 2. Prompt Learning
-# 3. Prompt Learning with visual conditioning
+# Fine tuning and caluclate non-trained accuracy
+CUDA_VISIBLE_DEVICES=0 python train.py model.name=RN50x16
 
-python train.py model.name=openai/clip-vit-large-patch14
-python train.py model.name=openai/clip-vit-base-patch16
-python train.py model.name=openai/clip-vit-base-patch32
-python train.py model.name=openai/clip-vit-large-patch14-336\
-    dataset.img_size=336
+# Fine tuning + M2 Loss
+CUDA_VISIBLE_DEVICES=1 python train.py model.name=RN50x16\
+    model.m2_loss_weight=0.1
 
-python train.py model.name=openai/clip-vit-large-patch14-336\
-    dataset.img_size=336\
+# Prompt Learning
+CUDA_VISIBLE_DEVICES=2 python train.py model.name=RN50x16\
     model.prompt_learning=True\
-    train.batch_size=32
-    
-python train.py model.name=openai/clip-vit-large-patch14-336\
-    dataset.img_size=336\
+    model.n_prompt=1\
+    train.batch_size=256
+
+# Prompt Learning + Q-former
+CUDA_VISIBLE_DEVICES=3 python train.py model.name=RN50x16\
     model.prompt_learning=True\
     model.prompt_from_visual_tokens=True\
-    train.batch_size=32\
-    hydra.job.env_set.CUDA_VISIBLE_DEVICES=2
+    model.n_prompt=1\
+    train.batch_size=256
 
-python train.py model.name=openai/clip-vit-large-patch14-336\
-    dataset.img_size=336\
+
+# Q-Fromer ablation
+# 1. Q-Former with 16 prompts
+CUDA_VISIBLE_DEVICES=0 python train.py model.name=RN50x16\
     model.prompt_learning=True\
     model.prompt_from_visual_tokens=True\
-    model.n_prompt=64\
-    train.batch_size=32\
-    hydra.job.env_set.CUDA_VISIBLE_DEVICES=1
+    model.n_prompt=16\
+    train.batch_size=256
+
+# 2. Q-Former with logit scale 4.6052
+CUDA_VISIBLE_DEVICES=1 python train.py model.name=RN50x16\
+    model.prompt_learning=True\
+    model.prompt_from_visual_tokens=True\
+    model.n_prompt=1\
+    model.logit_scale=4.6052\
+    train.batch_size=256
+
+# 3. Q-former with smaller batch size
+CUDA_VISIBLE_DEVICES=2 python train.py model.name=RN50x16\
+    model.prompt_learning=True\
+    model.prompt_from_visual_tokens=True\
+    model.n_prompt=1\
+    train.batch_size=16

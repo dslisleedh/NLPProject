@@ -47,6 +47,8 @@ def calc_recall_at_k_fixed(Y: torch.Tensor, k: int):
 
 def test_model(test_loader: torch.utils.data.DataLoader, model: nn.Module, device: str):
     model.eval()
+    if hasattr(model, 'q_former'):
+        model.q_former.eval()
     
     with torch.inference_mode():
         img_embeddings = []
@@ -67,6 +69,7 @@ def test_model(test_loader: torch.utils.data.DataLoader, model: nn.Module, devic
         img_embeddings = torch.cat(img_embeddings, dim=0).to(device)
         text_embeddings = torch.cat(text_embeddings, dim=0).to(device)
         
+        # There's no need to multiply logit_scale since we're only interested in the order of similarity
         probs_text_to_img = (text_embeddings @ img_embeddings.t()).softmax(dim=-1)
     
     recall_at_1 = calc_recall_at_k_fixed(probs_text_to_img, 1)

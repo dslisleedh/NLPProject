@@ -1,0 +1,25 @@
+model:
+  name: RN50x16
+  prompt_learning: true
+  prompt_from_visual_tokens: true
+  qformer_config:
+    dim: 1024
+    ffn_exp_ratio: 4
+    drop_rate: 0.1
+    heads: 8
+    depth: 12
+  n_prompt: 1
+  logit_scale: 0.0
+  m2_loss_weight: null
+
+inference:
+  blend_alpha: 0.4  # alpha for mixup(weight for gradient)
+  save_path: ./inference_logs
+  model_path: train_logs/RN50x16/2023-12-09_14-26-53/models/13.pt
+  # text: the human in the image is painting
+  text: the human in the image is shooting archery
+  image_dir: ./hpitp_dataset/images/
+  image_paths:
+    - n02879718_23388_ImageNet_0.png
+    - 0076561_LSDIR_0.png
+    - 085226387_mpii_0.png

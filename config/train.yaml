@@ -1,8 +1,8 @@
 model:
   # ['RN50', 'RN101', 'RN50x4', 'RN50x16', 'RN50x64', 'ViT-B/32', 'ViT-B/16', 'ViT-L/14', 'ViT-L/14@336px']
-  name: RN50
-  prompt_learning: False
-  prompt_from_visual_tokens: False
+  name: RN50x16
+  prompt_learning: false
+  prompt_from_visual_tokens: false
   qformer_config:
     dim: 1024
     ffn_exp_ratio: 4
@@ -30,7 +30,7 @@ train:
   epochs: 50
 
 # Which is same as BLIP2 paper only change optimizer(AdamW -> AdaBelief)
-# Since AdamW + FP16 is not stable which causes NAN Grad.
+# Since AdamW + FP16 is not stable which causes NAN Grad we used AdaBelief
 optimizer:
   name: AdaBelief
   lr: !!float 1e-4
@@ -46,7 +46,7 @@ scheduler:
   start_factor: 1e-3
 
 early_stopping:
-  criterion: recall_at_20
+  criterion: recall_at_1
   patience: 5
   maximize: True
 
@@ -55,6 +55,7 @@ defaults:
   - override hydra/hydra_logging: colorlog
 
 # hydra and directory-related settings.
+# log_prefix: ./train_logs
 log_prefix: ./train_logs
 hydra:
   run:

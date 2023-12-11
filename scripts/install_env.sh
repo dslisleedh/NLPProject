@@ -27,5 +27,6 @@ yes | pip install timm
 yes | pip install tb-nightly
 yes | pip install einops
 yes | pip install ftfy
+yes | pip intsall opencv-python
 
 git clone https://github.com/openai/CLIP.git

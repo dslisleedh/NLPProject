@@ -8,3 +8,7 @@ __pycache__/test.cpython-310.pyc
 __pycache__/utils.cpython-310.pyc
 src/__pycache__/model.cpython-310.pyc
 /CLIP
+/similarity_matrix
+/similarity_matrix_softmax
+/test
+/qformer_ablation

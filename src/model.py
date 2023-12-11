@@ -86,6 +86,8 @@ class MHSA(nn.Module):
         
         x = self.pre_norm(x)
         
+        # FIXME: Change Spatial Attention into Channel Attention.
+        #  - But why this is working even though there's only 1 spatial dimension?
         if self.cross_attn:
             q = self.to_q(x)
             k = self.to_k(img_context)
@@ -143,6 +145,7 @@ class QFormer(nn.Module):
         out_dim: Optional[int] = None
     ):
         super().__init__()
+        self.n_cls = n_cls
         self.register_buffer('cls_token', torch.randn(1, n_cls, dim) * 0.01)
         self.pos_embedding = nn.Parameter(torch.randn(1, n_cls, dim) * 0.01, requires_grad=True)
         self.layers = nn.ModuleList([
@@ -175,6 +178,7 @@ def encode_text_prompt(self, text):
     x = x.permute(1, 0, 2)  # NLD -> LND
     x = self.transformer(x)
     x = x.permute(1, 0, 2)  # LND -> NLD
+    x = x[:, self.n_prompt:, :]
     x = self.ln_final(x).type(self.dtype)
 
     # x.shape = [batch_size, n_ctx, transformer.width]
@@ -190,11 +194,14 @@ def encode_text_visual_prompt(self, text):
     
     # Add prompt
     prompt = self.q_former(self.encoded_image.unsqueeze(1)).type(self.dtype)  # Which is attention pooled image embedding
+    if (x.shape[0] == 1) and (prompt.shape[0] > 1): # Inferencing
+        x = x.expand(prompt.shape[0], -1, -1)
     x = torch.cat([prompt, x], dim=1)
     
     x = x.permute(1, 0, 2)  # NLD -> LND
     x = self.transformer(x)
     x = x.permute(1, 0, 2)  # LND -> NLD
+    x = x[:, self.q_former.n_cls:, :]
     x = self.ln_final(x).type(self.dtype)
 
     # x.shape = [batch_size, n_ctx, transformer.width]
@@ -249,6 +256,7 @@ def get_model(model_config: DictConfig) -> nn.Module:
         
     elif model_config.prompt_learning:
         model = prepare_for_prompt_learning(model, model_config.n_prompt)
+        model.n_prompt = model_config.n_prompt
         model.prompts = nn.Parameter(
             torch.randn(1, model_config.n_prompt, model.transformer.width), requires_grad=True)
         model.encode_text = partial(encode_text_prompt, model)

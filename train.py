@@ -109,6 +109,8 @@ def train(cfg):
         
         # Train
         model.train()
+        if hasattr(model, 'q_former'):
+            model.q_former.train()
         losses = []
         pbar = tqdm(train_loader, desc=f'Training ...')
         for batch in pbar:
